@@ -50,3 +50,14 @@ def update_todo(
         raise HTTPException(status_code=400, detail="제목을 입력하세요")
     except TodoNotFoundError:
         raise HTTPException(status_code=404, detail="TODO를 찾을 수 없습니다")
+
+
+@router.delete("/{todo_id}", status_code=204)
+def delete_todo(
+    todo_id: int,
+    service: TodoService = Depends(get_service),
+):
+    try:
+        service.delete_todo(todo_id)
+    except TodoNotFoundError:
+        raise HTTPException(status_code=404, detail="TODO를 찾을 수 없습니다")

@@ -56,3 +56,11 @@ class TodoService:
             todo.completed = completed
 
         return self.repository.save(todo)
+
+    def delete_todo(self, todo_id: int):
+        todo = self.repository.find_by_id(todo_id)
+
+        if todo is None:
+            raise TodoNotFoundError()
+
+        self.repository.delete(todo)

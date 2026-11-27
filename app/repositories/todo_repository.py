@@ -21,3 +21,7 @@ class TodoRepository:
         self.session.commit()
         self.session.refresh(todo)
         return todo
+
+    def delete(self, todo: Todo):
+        self.session.delete(todo)
+        self.session.commit()
