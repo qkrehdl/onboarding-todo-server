@@ -13,6 +13,9 @@ class TodoRepository:
             select(Todo).order_by(Todo.id.desc())
         ).all()
 
+    def find_by_id(self, todo_id: int):
+        return self.session.get(Todo, todo_id)
+
     def save(self, todo: Todo):
         self.session.add(todo)
         self.session.commit()
