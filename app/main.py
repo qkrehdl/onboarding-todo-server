@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -7,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import engine, init_db
 from app.models.todo import Todo
-from app.schemas.todo import TodoCreate, TodoUpdate
+from app.schemas.todo import TodoUpdate
 from app.routers import todo
 
 
@@ -34,36 +32,9 @@ def to_dict(todo: Todo) -> dict:
     }
 
 
-def now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
-
-
 @app.get("/")
 def health():
-    return {
-        "status": "ok",
-        "version": settings.version,
-    }
-
-
-@app.post("/todos", status_code=201)
-def create_todo(body: TodoCreate):
-    title = body.title.strip()
-
-    if not title:
-        raise HTTPException(status_code=400, detail="제목을 입력하세요")
-
-    with Session(engine) as session:
-        todo = Todo(
-            title=title,
-            completed=False,
-            created_at=now(),
-        )
-
-        session.add(todo)
-        session.commit()
-        session.refresh(todo)
-        return to_dict(todo)
+    return {"status": "ok", "version": settings.version}
 
 
 @app.patch("/todos/{todo_id}")
@@ -87,7 +58,6 @@ def update_todo(todo_id: int, body: TodoUpdate):
 
         session.commit()
         session.refresh(todo)
-
         return to_dict(todo)
 
 
@@ -97,10 +67,7 @@ def delete_todo(todo_id: int):
         todo = session.get(Todo, todo_id)
 
         if todo is None:
-            raise HTTPException(
-                status_code=404,
-                detail="TODO를 찾을 수 없습니다",
-            )
+            raise HTTPException(status_code=404, detail="TODO를 찾을 수 없습니다")
 
         session.delete(todo)
         session.commit()

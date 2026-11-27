@@ -12,3 +12,9 @@ class TodoRepository:
         return self.session.scalars(
             select(Todo).order_by(Todo.id.desc())
         ).all()
+
+    def save(self, todo: Todo):
+        self.session.add(todo)
+        self.session.commit()
+        self.session.refresh(todo)
+        return todo
