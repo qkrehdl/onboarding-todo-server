@@ -1,66 +1,28 @@
-"""TODO 서버 — 2회차 실습용.
-
-일부러 파일 하나에 모든 것을 넣었습니다(설정 · CORS · DB 모델 · HTTP 처리 · 검증).
-기능이 늘수록 이 파일이 얼마나 복잡해지는지 느껴 보는 것이 이번 주의 목적이고,
-그 불편함이 3회차(Layered Architecture)의 출발점입니다.
-"""
-
-import os
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from sqlalchemy import String, create_engine, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+from sqlalchemy.orm import Session
 
-# ── 설정 ──────────────────────────────────────────────────
-# DB 주소는 코드가 아니라 환경변수 DATABASE_URL에서 읽습니다.
-# 없으면 이 폴더의 todo.db(SQLite)를 씁니다. 심화 실습에서 Supabase 주소를 넣으면 PostgreSQL이 됩니다.
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{Path(__file__).parent / 'todo.db'}")
-# Supabase가 주는 postgresql:// 주소를 psycopg(3) 드라이버로 연결하도록 맞춥니다.
-if DATABASE_URL.startswith(("postgresql://", "postgres://")):
-    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.split("://", 1)[1]
+from app.config import settings
+from app.database import engine, init_db
+from app.models.todo import Todo
+from app.schemas.todo import TodoCreate, TodoUpdate
+from app.routers import todo
 
-# echo=True — SQLAlchemy가 실제로 실행하는 SQL을 터미널에 보여 줍니다.
-engine = create_engine(DATABASE_URL, echo=True)
 
 app = FastAPI(title="onboarding-todo")
 
-# ── CORS — 이 API를 불러도 되는 화면 주소 ─────────────────
-# 화면(index.html)과 API의 주소가 다르면, 브라우저는 API가 허락한 주소에서 온 요청만 받아들입니다.
-# 로컬에서는 화면을 http://localhost:5500 에서 띄우므로 그 주소를 기본으로 허락합니다.
-# 배포하면 환경변수 ALLOWED_ORIGINS에 Cloudflare Pages 주소를 넣습니다(쉼표로 여러 개).
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500"
-).split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+init_db()
 
-# ── DB 모델 — 테이블 하나 = 클래스 하나 ─────────────────────
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class Todo(Base):
-    __tablename__ = "todo"
-
-    id: Mapped[int] = mapped_column(primary_key=True)  # 자동 증가 번호
-    title: Mapped[str] = mapped_column(String(200))
-    completed: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[str] = mapped_column(String(32))
-
-
-Base.metadata.create_all(engine)  # 테이블이 없으면 만든다
+app.include_router(todo.router)
 
 
 def to_dict(todo: Todo) -> dict:
@@ -76,37 +38,12 @@ def now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-# ── 요청 본문 모양 ─────────────────────────────────────────
-
-
-class TodoCreate(BaseModel):
-    title: str
-
-
-class TodoUpdate(BaseModel):
-    title: str | None = None
-    completed: bool | None = None
-
-
-# ── 상태 확인 ─────────────────────────────────────────────
-
-
 @app.get("/")
 def health():
-    # 서버가 살아 있는지 확인하는 용도입니다. 화면은 index.html을 따로 엽니다.
-    return {"status": "ok"}
-
-
-# ── API ───────────────────────────────────────────────────
-
-
-@app.get("/todos")
-def list_todos():
-    """TODO 목록 조회 — 예시로 완성해 둔 API입니다."""
-    with Session(engine) as session:
-        todos = session.scalars(select(Todo).order_by(Todo.id.desc())).all()
-        return [to_dict(t) for t in todos]
-
+    return {
+        "status": "ok",
+        "version": settings.version,
+    }
 
 
 @app.post("/todos", status_code=201)
@@ -118,11 +55,11 @@ def create_todo(body: TodoCreate):
 
     with Session(engine) as session:
         todo = Todo(
-            title=title, 
-            completed=False, 
+            title=title,
+            completed=False,
             created_at=now(),
         )
-        
+
         session.add(todo)
         session.commit()
         session.refresh(todo)
@@ -144,7 +81,7 @@ def update_todo(todo_id: int, body: TodoUpdate):
                 raise HTTPException(status_code=400, detail="제목을 입력하세요")
 
             todo.title = title
-            
+
         if body.completed is not None:
             todo.completed = body.completed
 
